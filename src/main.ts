@@ -1,19 +1,17 @@
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { LoggingInterceptor } from './config/logger';
+import { HOST, PORT } from './constants';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalInterceptors(new LoggingInterceptor());
+  app.enableCors();
+  await app.listen(PORT);
 
-  const config = new DocumentBuilder()
-    .setTitle('Basic project')
-    .setDescription('The project API description')
-    .setVersion('1.0')
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
-
-  await app.listen(3000);
+  const logger = new Logger('DaNaTravel');
+  logger.log(`Application is running on http://${HOST}:${PORT}`);
 }
 bootstrap();

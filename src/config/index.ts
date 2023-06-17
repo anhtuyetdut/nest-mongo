@@ -1,6 +1,10 @@
+import { config } from 'dotenv';
+
 export class ConfigService {
   private static _instance: ConfigService;
-  constructor() {}
+  constructor() {
+    config({ path: '.env' });
+  }
 
   static getInstance() {
     if (this._instance) return this._instance;
@@ -13,6 +17,6 @@ export class ConfigService {
   }
 
   public getNumber(key: string): number {
-    return Number(process.env[key]);
+    return Number(this.get(key));
   }
 }
