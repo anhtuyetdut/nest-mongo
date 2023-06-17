@@ -1,8 +1,7 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import axios from 'axios';
-import * as _ from 'lodash';
-import { range } from 'lodash';
+import _, { range } from 'lodash';
 import mongoose, { Model } from 'mongoose';
 import { LocationDto, LocationOptions, getLocation } from 'src/commons/locations';
 import { RouteOptions, getRoute } from 'src/commons/routes';
@@ -119,7 +118,7 @@ export class GeneticService implements OnApplicationBootstrap {
   }
 
   async getListLocations(date: string | Date = new Date()) {
-    let locations = await this.locationRepo
+    const locations = await this.locationRepo
       .find(
         {},
         {
@@ -279,7 +278,7 @@ export class GeneticService implements OnApplicationBootstrap {
     const fitnessResults: { [key: number]: number } = {};
 
     for (const [index, popItem] of population.entries()) {
-      const { fitness, distance } = getRoute(popItem, this.type);
+      const { fitness } = getRoute(popItem, this.type);
       fitnessResults[index] = fitness;
     }
 
@@ -319,7 +318,7 @@ export class GeneticService implements OnApplicationBootstrap {
     return selectionResults.concat(eliteResults);
   }
 
-  mergedPoint(population: LocationOptions[][], selectionResults: number[]) {
+  comparePoint(population: LocationOptions[][], selectionResults: number[]) {
     const output = selectionResults.map((index: number) => population[index]);
 
     return output;
@@ -358,7 +357,7 @@ export class GeneticService implements OnApplicationBootstrap {
     return { child1, child2 };
   }
 
-  crossoverPopulation(mergedPoint: LocationOptions[][], numElites: number = 0) {
+  crossover(mergedPoint: LocationOptions[][], numElites: number = 0) {
     const children = [];
     const numNonElites = mergedPoint.length - numElites;
 
@@ -371,7 +370,7 @@ export class GeneticService implements OnApplicationBootstrap {
 
     let index = 0;
     while (children.length < numNonElites + numElites) {
-      const { child1, child2 } = this.crossoverMix(individuals[index], individuals[mergedPoint.length - index - 1]);
+      const { child1 } = this.crossoverMix(individuals[index], individuals[mergedPoint.length - index - 1]);
 
       const isTrue = this.checkArrivalTime(child1);
       if (isTrue) children.push(child1);
@@ -382,7 +381,7 @@ export class GeneticService implements OnApplicationBootstrap {
     return children;
   }
 
-  muation(individual: LocationOptions[], mutationRate: number = 0) {
+  mutate(individual: LocationOptions[], mutationRate: number = 0) {
     if (Math.random() < mutationRate) {
       while (true) {
         const [mutationIndex1, mutationIndex2] = _.sampleSize(range(1, individual.length - 1), 2);
@@ -406,8 +405,8 @@ export class GeneticService implements OnApplicationBootstrap {
     return individual;
   }
 
-  mutationPopulation(children: LocationOptions[][], mutationRate: number = 0) {
-    const mutatedPopulation = children.map((child) => this.muation(child, mutationRate));
+  mutation(children: LocationOptions[][], mutationRate: number = 0) {
+    const mutatedPopulation = children.map((child) => this.mutate(child, mutationRate));
 
     return mutatedPopulation;
   }
@@ -416,15 +415,13 @@ export class GeneticService implements OnApplicationBootstrap {
     const populationRanked = this.rankedRoutes(currentGen);
 
     const bestCurrentGenRoute = getRoute(currentGen[populationRanked[0][0]], this.type);
-    const bestCurrentGenFitness = bestCurrentGenRoute.fitness;
-    const bestCurrentGenDistance = bestCurrentGenRoute.distance;
 
     const selectionResults = this.selection(populationRanked, numElites);
-    const individuals = this.mergedPoint(currentGen, selectionResults);
-    const children = this.crossoverPopulation(individuals, numElites);
-    const nextGeneration = this.mutationPopulation(children, mutationRate);
+    const individuals = this.comparePoint(currentGen, selectionResults);
+    const children = this.crossover(individuals, numElites);
+    const nextGeneration = this.mutation(children, mutationRate);
 
-    return { nextGeneration, bestCurrentGenRoute, bestCurrentGenDistance, bestCurrentGenFitness };
+    return { nextGeneration, bestCurrentGenRoute };
   }
 
   geneticAlgorithm(
@@ -446,16 +443,11 @@ export class GeneticService implements OnApplicationBootstrap {
     }
 
     const bestRouteByGen = [];
-    const bestFitnessByGen = [];
-    const bestDistanceByGen = [];
 
     while (bestRouteByGen.length <= numGens) {
-      const { nextGeneration, bestCurrentGenRoute, bestCurrentGenFitness, bestCurrentGenDistance } =
-        this.nextGeneration(population, numElites, mutationRate);
+      const { nextGeneration, bestCurrentGenRoute } = this.nextGeneration(population, numElites, mutationRate);
 
       bestRouteByGen.push(bestCurrentGenRoute);
-      bestFitnessByGen.push(bestCurrentGenFitness);
-      bestDistanceByGen.push(bestCurrentGenDistance);
 
       population = nextGeneration;
     }
@@ -475,7 +467,7 @@ export class GeneticService implements OnApplicationBootstrap {
   }
 
   getBestRoute(routesInfo: LocationOptions[][]) {
-    const routes = routesInfo.map((route: LocationOptions[], index) => {
+    const routes = routesInfo.map((route: LocationOptions[]) => {
       const length = route.length;
 
       if (length < 3) return { distance: 0, cost: 0, route: null };
@@ -506,7 +498,7 @@ export class GeneticService implements OnApplicationBootstrap {
   }
 
   async createNewRoute(dto: RouteQueryDto, auth: Auth) {
-    const { latitude, longitude, startDate, endDate, people, ...data } = dto;
+    const { startDate, endDate, people, ...data } = dto;
 
     const { diffInDays } = handleDurationTime(startDate, endDate);
 
@@ -848,8 +840,8 @@ export class GeneticService implements OnApplicationBootstrap {
 
     const { weekdays, diffInDays, datetimes } = handleDurationTime(startDate, endDate);
 
-    let minCostPerPerson = minCost ? minCost / (people * diffInDays) : 0;
-    let maxCostPerPerson = maxCost ? maxCost / (people * diffInDays) : 0;
+    const minCostPerPerson = minCost ? minCost / (people * diffInDays) : 0;
+    const maxCostPerPerson = maxCost ? maxCost / (people * diffInDays) : 0;
 
     const routes = [];
 
